@@ -5,68 +5,124 @@ import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class UploadService {
-  constructor(private readonly configService: ConfigService) {}
+  private blobServiceClient: BlobServiceClient;
   private containerName: string;
 
-  private async getBlobServiceInstance() {
-    const connectionString = this.configService.get(
-      'AZURE_STORAGE_CONNECTION_STRING',
+  constructor(private configService: ConfigService) {
+    this.blobServiceClient = BlobServiceClient.fromConnectionString(
+      this.configService.get<string>('AZURE_STORAGE_CONNECTION_STRING'),
+      {
+        retryOptions: {
+          maxTries: 5,
+          tryTimeoutInMs: 5000,
+          retryDelayInMs: 1000,
+        },
+      },
     );
-    const blobClientService =
-      await BlobServiceClient.fromConnectionString(connectionString);
 
-    return blobClientService;
+    this.containerName = this.configService.get<string>(
+      'AZURE_STORAGE_CONTAINER_NAME',
+    );
   }
 
-  private async getBlobClient(imageName: string): Promise<BlockBlobClient> {
-    const blobService = await this.getBlobServiceInstance();
-    const containerName = this.containerName;
-    const containerClient = blobService.getContainerClient(containerName);
-    const blockBlobClient = containerClient.getBlockBlobClient(imageName);
-    return blockBlobClient;
-  }
-
-  public async uploadFile(file: Express.Multer.File, containerName: string) {
-    this.containerName = containerName;
-    const extension = file.originalname.split('.').pop();
-    const file_name = uuidv4() + '.' + extension;
-    const blockBlobClient = await this.getBlobClient(file_name);
-    const fileUrl = blockBlobClient.url;
-    await blockBlobClient.uploadData(file.buffer);
-
-    return fileUrl;
-  }
-
-  async deleteFile(file_name: string, containerName: string) {
-    try {
-      this.containerName = containerName;
-      const blockBlobClient = await this.getBlobClient(file_name);
-      await blockBlobClient.deleteIfExists();
-    } catch (error) {
-      console.log(error);
-    }
-  }
-
-  public async downloadFile(file_name: string, containerName: string) {
-    this.containerName = containerName;
-    const blockBlobClient = await this.getBlobClient(file_name);
-    const downloadBlockBlobResponse = await blockBlobClient.download();
-    const downloaded = (
-      await this.streamToBuffer(downloadBlockBlobResponse.readableStreamBody)
-    ).toString();
-    return downloaded;
-  }
-
-  private streamToBuffer(readableStream) {
+  // Helper method to convert a readable stream to a buffer
+  private async streamToBuffer(
+    readableStream: NodeJS.ReadableStream,
+  ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const chunks = [];
+      const chunks: Buffer[] = [];
       readableStream.on('data', (data) => {
-        chunks.push(data instanceof Buffer ? data : Buffer.from(data));
+        chunks.push(Buffer.from(data));
       });
       readableStream.on('end', () => {
         resolve(Buffer.concat(chunks));
       });
       readableStream.on('error', reject);
     });
+  }
+
+  private getBlobClient(fileName: string): BlockBlobClient {
+    const containerClient = this.blobServiceClient.getContainerClient(
+      this.containerName,
+    );
+    return containerClient.getBlockBlobClient(fileName);
+  }
+
+  private async ensureContainerExists(): Promise<void> {
+    const containerClient = this.blobServiceClient.getContainerClient(
+      this.containerName,
+    );
+
+    const exists = await containerClient.exists();
+    if (!exists) {
+      console.log(
+        `Container "${this.containerName}" does not exist. Creating it...`,
+      );
+      await containerClient.create();
+      console.log(`Container "${this.containerName}" created successfully.`);
+    } else {
+      console.log(`Container "${this.containerName}" already exists.`);
+    }
+  }
+  async fileExists(fileName: string): Promise<boolean> {
+    const relativePath = fileName.includes('blob.core.windows.net')
+      ? fileName.split('/mixes/')[1]
+      : fileName;
+
+    const blobClient = this.getBlobClient(relativePath);
+    return await blobClient.exists();
+  }
+
+  async getFileStream(
+    fileName: string,
+  ): Promise<{ buffer: Buffer; contentType: string; size: number }> {
+    const relativePath = fileName.includes('blob.core.windows.net')
+      ? fileName.split('/mixes/')[1]
+      : fileName;
+
+    const blobClient = this.getBlobClient(relativePath);
+    const properties = await blobClient.getProperties();
+    const downloadResponse = await blobClient.download();
+
+    if (!downloadResponse.readableStreamBody) {
+      throw new Error('No readable stream available');
+    }
+
+    const buffer = await this.streamToBuffer(
+      downloadResponse.readableStreamBody,
+    );
+
+    return {
+      buffer,
+      contentType: properties.contentType || 'application/octet-stream',
+      size: properties.contentLength || 0,
+    };
+  }
+
+  async uploadFile(
+    file: Express.Multer.File,
+    fileName: string,
+  ): Promise<string> {
+    await this.ensureContainerExists();
+
+    const blobClient = this.getBlobClient(fileName);
+    await blobClient.uploadData(file.buffer, {
+      blobHTTPHeaders: { blobContentType: file.mimetype },
+    });
+
+    console.log('Upload completed successfully');
+    return fileName;
+  }
+
+  async deleteFile(fileName: string): Promise<void> {
+    const blobClient = this.getBlobClient(fileName);
+    await blobClient.delete();
+  }
+
+  generateUniqueFileName(originalName: string): string {
+    const timestamp = new Date().getTime();
+    const random = Math.floor(Math.random() * 1000);
+    const extension = originalName.split('.').pop();
+    return `${timestamp}-${random}.${extension}`;
   }
 }
