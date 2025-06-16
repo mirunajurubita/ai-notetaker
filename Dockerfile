@@ -2,20 +2,20 @@
 FROM node:18
 
 # Create app directory
-WORKDIR /usr/src/app
+WORKDIR /app
 
 # Install app dependencies
 COPY package*.json ./
 RUN npm install
 
+# Install Nest CLI globally (optional, if needed)
+RUN npm install -g @nestjs/cli
+
 # Bundle app source
 COPY . .
 
-# Build the NestJS app
-RUN npm run build
-
-# Expose port (make sure it matches APP_PORT)
+# Expose the app port
 EXPOSE 3000
 
-# Start the app
-CMD ["node", "dist/main.js"]
+# Run in watch mode
+CMD ["npm", "run", "start:dev"]

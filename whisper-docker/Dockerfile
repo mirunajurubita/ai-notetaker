@@ -12,4 +12,4 @@ RUN mkdir build && cd build && cmake .. && make
 
 RUN pip3 install numpy
 
-CMD ["sleep", "infinity"]
+CMD ["npm", "run", "start:dev"]
