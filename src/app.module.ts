@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { UploadModule } from './upload/upload.model';
+import { PdfParserModule } from './pdf-parser/pdf-parser.module';
 
 
 @Module({
@@ -21,7 +22,8 @@ import { UploadModule } from './upload/upload.model';
       entities: [__dirname + '/**/*.entity{.ts,.js}'], 
       synchronize: true, 
     }),
-    UploadModule
+    UploadModule,
+    PdfParserModule
   ],
   controllers: [AppController],
   providers: [AppService],

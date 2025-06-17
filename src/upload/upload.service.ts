@@ -1,7 +1,6 @@
 import { BlobServiceClient, BlockBlobClient } from '@azure/storage-blob';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class UploadService {
@@ -23,22 +22,6 @@ export class UploadService {
     this.containerName = this.configService.get<string>(
       'AZURE_STORAGE_CONTAINER_NAME',
     );
-  }
-
-  // Helper method to convert a readable stream to a buffer
-  private async streamToBuffer(
-    readableStream: NodeJS.ReadableStream,
-  ): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      readableStream.on('data', (data) => {
-        chunks.push(Buffer.from(data));
-      });
-      readableStream.on('end', () => {
-        resolve(Buffer.concat(chunks));
-      });
-      readableStream.on('error', reject);
-    });
   }
 
   private getBlobClient(fileName: string): BlockBlobClient {
@@ -66,37 +49,13 @@ export class UploadService {
   }
   async fileExists(fileName: string): Promise<boolean> {
     const relativePath = fileName.includes('blob.core.windows.net')
-      ? fileName.split('/mixes/')[1]
+      ? fileName.split(
+          this.configService.get<string>('AZURE_STORAGE_CONTAINER_NAME'),
+        )[1]
       : fileName;
 
     const blobClient = this.getBlobClient(relativePath);
     return await blobClient.exists();
-  }
-
-  async getFileStream(
-    fileName: string,
-  ): Promise<{ buffer: Buffer; contentType: string; size: number }> {
-    const relativePath = fileName.includes('blob.core.windows.net')
-      ? fileName.split('/mixes/')[1]
-      : fileName;
-
-    const blobClient = this.getBlobClient(relativePath);
-    const properties = await blobClient.getProperties();
-    const downloadResponse = await blobClient.download();
-
-    if (!downloadResponse.readableStreamBody) {
-      throw new Error('No readable stream available');
-    }
-
-    const buffer = await this.streamToBuffer(
-      downloadResponse.readableStreamBody,
-    );
-
-    return {
-      buffer,
-      contentType: properties.contentType || 'application/octet-stream',
-      size: properties.contentLength || 0,
-    };
   }
 
   async uploadFile(
@@ -124,5 +83,29 @@ export class UploadService {
     const random = Math.floor(Math.random() * 1000);
     const extension = originalName.split('.').pop();
     return `${timestamp}-${random}.${extension}`;
+  }
+
+  async getFileStream(fileName: string): Promise<NodeJS.ReadableStream> {
+    const relativePath = fileName.includes('blob.core.windows.net')
+      ? fileName.split('/mixes/')[1]
+      : fileName;
+
+    const blobClient = this.getBlobClient(relativePath);
+    const downloadResponse = await blobClient.download();
+
+    if (!downloadResponse.readableStreamBody) {
+      throw new Error('No readable stream available');
+    }
+
+    return downloadResponse.readableStreamBody;
+  }
+
+  async streamToBuffer(readableStream: NodeJS.ReadableStream): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      readableStream.on('data', (data) => chunks.push(Buffer.from(data)));
+      readableStream.on('end', () => resolve(Buffer.concat(chunks)));
+      readableStream.on('error', reject);
+    });
   }
 }

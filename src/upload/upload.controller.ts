@@ -22,16 +22,6 @@ import { UploadMultimediaDto } from './dto/upload-media.dto';
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
-  @Get(':filename')
-  async getFile(@Param('filename') filename: string, @Res() res: Response){
-    const stream = await this.uploadService.getFileStream(filename)
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `incline; filename=${filename}`
-    });
-    stream.pipe(res)
-  }
-
   @Post()
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: UploadMultimediaDto })
