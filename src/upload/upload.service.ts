@@ -24,6 +24,15 @@ export class UploadService {
     );
   }
 
+  async onModuleInit() {
+    try {
+      await this.ensureContainerExists();
+      console.log('UploadService initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize UploadService:', error);
+    }
+  }
+
   private getBlobClient(fileName: string): BlockBlobClient {
     const containerClient = this.blobServiceClient.getContainerClient(
       this.containerName,
@@ -87,7 +96,9 @@ export class UploadService {
 
   async getFileStream(fileName: string): Promise<NodeJS.ReadableStream> {
     const relativePath = fileName.includes('blob.core.windows.net')
-      ? fileName.split('/mixes/')[1]
+      ? fileName.split(
+          this.configService.get<string>('AZURE_STORAGE_CONTAINER_NAME'),
+        )[1]
       : fileName;
 
     const blobClient = this.getBlobClient(relativePath);
