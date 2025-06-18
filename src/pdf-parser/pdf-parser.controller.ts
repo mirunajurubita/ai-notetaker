@@ -1,16 +1,10 @@
-import {
-  Body,
-  Controller,
-  Post,
-  UploadedFiles,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
 import { PdfParserService } from './pdf-parser.service';
-import { FilesInterceptor } from '@nestjs/platform-express';
 import { UploadService } from 'src/upload/upload.service';
-import { ApiBody } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 
-@Controller()
+@ApiTags('document')
+@Controller('document')
 export class PdfParserController {
   constructor(
     private readonly pdfParserService: PdfParserService,
@@ -36,9 +30,10 @@ export class PdfParserController {
     for (const filename of body.filenames) {
       const stream = await this.uploadService.getFileStream(filename);
       const buffer = await this.uploadService.streamToBuffer(stream);
+      const text = await this.pdfParserService.extractTextFromBuffer(buffer);
 
-      const parsed = await this.pdfParserService.extractTextFromBuffer(buffer);
-      results.push({ filename, text: parsed });
+      await this.pdfParserService.saveParsedContent(filename, text, 'document');
+      results.push({ filename, text });
     }
 
     return results;

@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { UploadModule } from './upload/upload.model';
 import { PdfParserModule } from './pdf-parser/pdf-parser.module';
+import { MongooseModule } from '@nestjs/mongoose';
 
 
 @Module({
@@ -12,16 +13,7 @@ import { PdfParserModule } from './pdf-parser/pdf-parser.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    TypeOrmModule.forRoot({
-      type: 'mysql',
-      host: 'localhost',
-      port: parseInt(process.env.DB_PORT, 10),
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      entities: [__dirname + '/**/*.entity{.ts,.js}'], 
-      synchronize: true, 
-    }),
+    MongooseModule.forRoot(process.env.MONGO_URI),
     UploadModule,
     PdfParserModule
   ],

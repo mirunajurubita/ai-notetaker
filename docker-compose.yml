@@ -4,38 +4,48 @@ services:
     ports:
       - '${APP_PORT}:${APP_PORT}'
     depends_on:
-      mysql:
+      mongo:
+        condition: service_healthy
+      azurite:
         condition: service_healthy
     environment:
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
-      DB_USER: ${DB_USERNAME}
-      DB_PASS: ${DB_PASSWORD}
-      DB_NAME: ${DB_NAME}
+      MONGO_URI: ${MONGO_URI}
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING}
+      AZURE_STORAGE_CONTAINER_NAME: ${AZURE_STORAGE_CONTAINER_NAME}
     volumes:
       - ./uploads:/app/uploads
       - .:/app
       - /app/node_modules
     restart: on-failure
 
-  mysql:
-    image: mysql:8.0
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: $DB_PASSWORD
-      MYSQL_USER: $DB_USERNAME
-      MYSQL_PASSWORD: $DB_PASSWORD
-      MYSQL_DATABASE: $DB_NAME
+  mongo:
+    image: mongo:6.0
     ports:
-      - "3306:3306"
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${DB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - mysql-data:/var/lib/mysql
+      - mongo-data:/data/db
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
-      timeout: 20s
-      retries: 10
+      test: ["CMD", "mongosh", "--host", "localhost:27017", "-u", "${DB_USERNAME}", "-p", "${DB_PASSWORD}", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping')"]
       interval: 10s
-      start_period: 40s
+      timeout: 5s
+      retries: 5
+      start_period: 30s 
+    restart: always
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: user
+      ME_CONFIG_MONGODB_ADMINPASSWORD: Parola123
+      ME_CONFIG_MONGODB_URL: mongodb://user:Parola123@mongo:27017/?authSource=admin
+      ME_CONFIG_BASICAUTH: false
+    depends_on:
+      - mongo
 
   whisper:
     image: whisper_cpp_local
@@ -49,9 +59,6 @@ services:
     ports:
       - "10000:10000"
       - "10001:10001"
-    environment:
-      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING}
-
     volumes:
       - azurite_data:/data
     command: "azurite-blob --blobHost 0.0.0.0 --location /data"
@@ -64,5 +71,5 @@ services:
     restart: always
 
 volumes:
-  mysql-data:
+  mongo-data:
   azurite_data:
