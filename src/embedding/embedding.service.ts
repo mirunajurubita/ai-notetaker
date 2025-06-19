@@ -7,7 +7,7 @@ export class EmbeddingService {
   async onModuleInit() {
     const TransformersApi = Function('return import("@xenova/transformers")')();
     const { pipeline } = await TransformersApi;
-    
+
     this.embedder = await pipeline(
       'feature-extraction',
       'Xenova/all-MiniLM-L6-v2',
@@ -23,6 +23,26 @@ export class EmbeddingService {
   }
   async embedText(text: string): Promise<number[]> {
     const result = await this.embedder(text);
-    return result[0]; // Float32Array → number[]
+    const { data, dims } = result;
+
+    const tensor = result[0];
+    const [batch, tokens, dim] = dims;
+
+    if (batch !== 1) {
+      throw new Error(`Unexpected batch size: ${batch}`);
+    }
+
+    const pooled = new Array(dim).fill(0);
+    for (let i = 0; i < tokens; i++) {
+      for (let j = 0; j < dim; j++) {
+        pooled[j] += data[i * dim + j];
+      }
+    }
+
+    for (let j = 0; j < dim; j++) {
+      pooled[j] /= tokens;
+    }
+
+    return pooled;
   }
 }

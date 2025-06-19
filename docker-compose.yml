@@ -1,23 +1,4 @@
 services:
-  app:
-    build: .
-    ports:
-      - '${APP_PORT}:${APP_PORT}'
-    depends_on:
-      mongo:
-        condition: service_healthy
-      azurite:
-        condition: service_healthy
-    environment:
-      MONGO_URI: ${MONGO_URI}
-      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING}
-      AZURE_STORAGE_CONTAINER_NAME: ${AZURE_STORAGE_CONTAINER_NAME}
-    volumes:
-      - ./uploads:/app/uploads
-      - .:/app
-      - /app/node_modules
-    restart: on-failure
-
   mongo:
     image: mongo:6.0
     ports:
@@ -48,6 +29,9 @@ services:
       - mongo
 
   whisper:
+    build:
+      context: ./whisper-docker
+      dockerfile: Dockerfile
     image: whisper_cpp_local
     ports:
       - "${WHISPER_PORT}:9000"
@@ -66,8 +50,8 @@ services:
       test: ["CMD-SHELL", "curl -f http://localhost:10000/devstoreaccount1?comp=list || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 10
+      start_period: 60s
     restart: always
     
   qdrant:

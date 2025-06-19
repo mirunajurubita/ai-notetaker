@@ -39,21 +39,16 @@ export class PdfParserController {
       await this.pdfParserService.saveParsedContent(filename, text, 'document');
 
       const chunks = this.embeddingService.chunkText(text);
-      console.log('chunks');
       const embeddings = await Promise.all(
         chunks.map((chunk) => this.embeddingService.embedText(chunk)),
       );
 
-
-      console.log("filename", filename)
-      console.log("chunks", chunks)
-      console.log('embeddings', embeddings);
+      await this.vectorStoreService.ensureCollectionExists('pdf_chunks');
       await this.vectorStoreService.upsertChunks({
         fileName: filename,
         chunks,
         embeddings,
       });
-
       results.push({ filename, text });
     }
 

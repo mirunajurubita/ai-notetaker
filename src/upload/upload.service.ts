@@ -71,15 +71,19 @@ export class UploadService {
     file: Express.Multer.File,
     fileName: string,
   ): Promise<string> {
-    await this.ensureContainerExists();
+    try {
+      await this.ensureContainerExists();
 
-    const blobClient = this.getBlobClient(fileName);
-    await blobClient.uploadData(file.buffer, {
-      blobHTTPHeaders: { blobContentType: file.mimetype },
-    });
+      const blobClient = this.getBlobClient(fileName);
+      await blobClient.uploadData(file.buffer, {
+        blobHTTPHeaders: { blobContentType: file.mimetype },
+      });
 
-    console.log('Upload completed successfully');
-    return fileName;
+      console.log('Upload completed successfully');
+      return fileName;
+    } catch (err) {
+      console.log('err');
+    }
   }
 
   async deleteFile(fileName: string): Promise<void> {
