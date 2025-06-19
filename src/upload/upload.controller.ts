@@ -4,16 +4,10 @@ import {
   UseInterceptors,
   BadRequestException,
   UploadedFiles,
-  Get,
-  Param,
-  Res,
 } from '@nestjs/common';
 import {
-  FileFieldsInterceptor,
-  FileInterceptor,
   FilesInterceptor,
 } from '@nestjs/platform-express';
-import { Response } from 'express';
 import { UploadService } from './upload.service';
 import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { UploadMultimediaDto } from './dto/upload-media.dto';
